@@ -17,11 +17,8 @@ const nextConfig = {
       canvas: false,
     };
 
-    // Přidáme podporu pro PDF.js worker
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'pdfjs-dist': require.resolve('pdfjs-dist/legacy/build/pdf'),
-    };
+    // Remove the problematic PDF.js alias
+    delete config.resolve.alias['pdfjs-dist'];
 
     return config;
   },
