@@ -166,8 +166,8 @@ export default function Dropzone() {
           throw new Error("Please select a format to convert to");
         }
         
-        // Ensure action.to is treated as a primitive string
-        const targetFormat: string = action.to;
+        // Convert to primitive string explicitly
+        const targetFormat = String(action.to).toLowerCase();
         
         if (action.file_type.includes('pdf') || 
             action.file_type.includes('msword') || 
@@ -252,16 +252,16 @@ export default function Dropzone() {
         if (action.file_name === file_name) {
           return {
             ...action,
-            to,
+            to: String(to), // Ensure primitive string
           };
         }
         return action;
       })
     );
   };
-  const checkIsReady = (): void => {
+  const checkIsReady = () => {
     let tmp_is_ready = true;
-    actions.forEach((action: Action) => {
+    actions.forEach((action) => {
       if (!action.to) tmp_is_ready = false;
     });
     setIsReady(tmp_is_ready);
