@@ -190,12 +190,18 @@ export default function Dropzone() {
             : elt
         );
         setActions(tmp_actions);
-      } catch (err) {
-        console.error('Conversion error:', err);
+      } catch (error: unknown) {
+        console.error('Conversion error:', error);
+        
+        // Safely handle the error message
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : "An error occurred during conversion";
+        
         toast({
           variant: "destructive",
           title: "Error Converting File",
-          description: err.message || "An error occurred during conversion",
+          description: errorMessage,
           duration: 5000,
         });
         
