@@ -79,6 +79,11 @@ const extensions = {
   ]
 };
 
+interface ConversionResult {
+  url: string;
+  output: string;
+}
+
 export default function Dropzone() {
   const { toast } = useToast();
   const [is_hover, setIsHover] = useState<boolean>(false);
@@ -145,7 +150,7 @@ export default function Dropzone() {
     URL.revokeObjectURL(action.url);
     document.body.removeChild(a);
   };
-  const convert = async (): Promise<any> => {
+  const convert = async (): Promise<void> => {
     let tmp_actions = actions.map((elt) => ({
       ...elt,
       is_converting: true,
@@ -155,7 +160,8 @@ export default function Dropzone() {
     
     for (let action of tmp_actions) {
       try {
-        let result;
+        let result: ConversionResult;
+        
         if (action.file_type.includes('pdf') || 
             action.file_type.includes('msword') || 
             action.file_type.includes('wordprocessingml') ||
