@@ -162,6 +162,10 @@ export default function Dropzone() {
       try {
         let result: ConversionResult;
         
+        if (!action.to) {
+          throw new Error("Please select a format to convert to");
+        }
+        
         if (action.file_type.includes('pdf') || 
             action.file_type.includes('msword') || 
             action.file_type.includes('wordprocessingml') ||
