@@ -105,8 +105,14 @@ export default async function convertDocument(file: File, toFormat: string): Pro
     const url = URL.createObjectURL(blob);
 
     return { url, output };
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Document conversion error:', error);
-    throw new Error(`Failed to convert document: ${error.message}`);
+    
+    // Safely handle the error message
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : "Unknown error occurred during conversion";
+      
+    throw new Error(`Failed to convert document: ${errorMessage}`);
   }
 } 
