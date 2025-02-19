@@ -166,11 +166,14 @@ export default function Dropzone() {
           throw new Error("Please select a format to convert to");
         }
         
+        // Ensure action.to is treated as a primitive string
+        const targetFormat: string = action.to;
+        
         if (action.file_type.includes('pdf') || 
             action.file_type.includes('msword') || 
             action.file_type.includes('wordprocessingml') ||
             action.file_type.includes('text/plain')) {
-          result = await convertDocument(action.file, action.to);
+          result = await convertDocument(action.file, targetFormat);
         } else {
           result = await convertFile(ffmpegRef.current, action);
         }
@@ -273,7 +276,9 @@ export default function Dropzone() {
       setFiles([]);
       setIsReady(false);
       setIsConverting(false);
-    } else checkIsReady();
+    } else {
+      checkIsReady();
+    }
   }, [actions]);
   useEffect(() => {
     load();
