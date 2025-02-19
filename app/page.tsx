@@ -2,20 +2,20 @@ import Dropzone from "@/components/dropzone";
 
 export default function Home() {
   return (
-    <div className="pb-8 space-y-16">
-    
-      <div className="space-y-6">
-        <h1 className="text-3xl font-medium text-center md:text-5xl">
-          Free Unlimited File Converter with FileFlex
+    <div className="relative flex flex-col gap-16 pb-8">
+      <div className="relative z-10 space-y-6">
+        <h1 className="text-4xl font-bold text-center sm:text-5xl">
+          Free Unlimited File Converter
         </h1>
-        <p className="text-center text-muted-foreground text-md md:text-lg md:px-24 xl:px-44 2xl:px-52">
-          Introducing FileFlex – your go-to online tool for unlimited and free
-          multimedia conversion. Easily convert images, audio, and videos
-          without any restrictions. Start converting now and streamline your
-          content effortlessly with FileFlex!
+        <p className="max-w-3xl mx-auto text-lg text-center text-muted-foreground">
+          Convert your files easily with ConvertX. Support for images, audio, video, 
+          and documents - all for free, right in your browser.
         </p>
       </div>
-      <Dropzone />
+      
+      <div className="relative z-0">
+        <Dropzone />
+      </div>
     </div>
   );
 }

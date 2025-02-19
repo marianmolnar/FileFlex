@@ -27,6 +27,7 @@ import { Button } from "./ui/button";
 import loadFfmpeg from "@/utils/load-ffmpeg";
 import type { Action } from "@/types";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
+import convertDocument from "@/utils/convert-document";
 
 const extensions = {
   image: [
@@ -62,6 +63,20 @@ const extensions = {
     "265",
   ],
   audio: ["mp3", "wav", "ogg", "aac", "wma", "flac", "m4a"],
+  document: [
+    "pdf",
+    "doc",
+    "docx",
+    "txt",
+    "rtf",
+    "odt",
+    "pages",
+    "epub",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx"
+  ]
 };
 
 export default function Dropzone() {
@@ -92,6 +107,16 @@ export default function Dropzone() {
     ],
     "audio/*": [],
     "video/*": [],
+    "application/pdf": [".pdf"],
+    "application/msword": [".doc"],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+    "text/plain": [".txt"],
+    "application/rtf": [".rtf"],
+    "application/vnd.oasis.opendocument.text": [".odt"],
+    "application/vnd.ms-excel": [".xls"],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+    "application/vnd.ms-powerpoint": [".ppt"],
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"]
   };
 
   // functions
@@ -127,22 +152,40 @@ export default function Dropzone() {
     }));
     setActions(tmp_actions);
     setIsConverting(true);
+    
     for (let action of tmp_actions) {
       try {
-        const { url, output } = await convertFile(ffmpegRef.current, action);
+        let result;
+        if (action.file_type.includes('pdf') || 
+            action.file_type.includes('msword') || 
+            action.file_type.includes('wordprocessingml') ||
+            action.file_type.includes('text/plain')) {
+          result = await convertDocument(action.file, action.to);
+        } else {
+          result = await convertFile(ffmpegRef.current, action);
+        }
+        
         tmp_actions = tmp_actions.map((elt) =>
           elt === action
             ? {
                 ...elt,
                 is_converted: true,
                 is_converting: false,
-                url,
-                output,
+                url: result.url,
+                output: result.output,
               }
             : elt
         );
         setActions(tmp_actions);
       } catch (err) {
+        console.error('Conversion error:', err);
+        toast({
+          variant: "destructive",
+          title: "Error Converting File",
+          description: err.message || "An error occurred during conversion",
+          duration: 5000,
+        });
+        
         tmp_actions = tmp_actions.map((elt) =>
           elt === action
             ? {
@@ -165,10 +208,19 @@ export default function Dropzone() {
     const tmp: Action[] = [];
     data.forEach((file: any) => {
       const formData = new FormData();
+      const fileExtension = file.name.slice(((file.name.lastIndexOf(".") - 1) >>> 0) + 2);
+      
+      // Determine if it's a document type
+      const isDocument = file.type.includes('pdf') || 
+                        file.type.includes('msword') ||
+                        file.type.includes('wordprocessingml') ||
+                        file.type.includes('text/plain') ||
+                        file.type.includes('application/rtf');
+
       tmp.push({
         file_name: file.name,
         file_size: file.size,
-        from: file.name.slice(((file.name.lastIndexOf(".") - 1) >>> 0) + 2),
+        from: fileExtension,
         to: null,
         file_type: file.type,
         file,
@@ -270,42 +322,31 @@ export default function Dropzone() {
               <div className="flex items-center gap-4 text-muted-foreground text-md">
                 <span>Convert to</span>
                 <Select
-                  onValueChange={(value) => {
-                    if (extensions.audio.includes(value)) {
-                      setDefaultValues("audio");
-                    } else if (extensions.video.includes(value)) {
-                      setDefaultValues("video");
-                    }
-                    setSelected(value);
-                    updateAction(action.file_name, value);
-                  }}
-                  value={selcted}
+                  value={action.to || ""}
+                  onValueChange={(value) => updateAction(action.file_name, value)}
                 >
-                  <SelectTrigger className="w-32 font-medium text-center outline-none focus:outline-none focus:ring-0 text-muted-foreground bg-background text-md">
-                    <SelectValue placeholder="..." />
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Convert to" />
                   </SelectTrigger>
                   <SelectContent className="h-fit">
                     {action.file_type.includes("image") && (
-                      <div className="grid grid-cols-2 gap-2 w-fit">
-                        {extensions.image.map((elt, i) => (
-                          <div key={i} className="col-span-1 text-center">
-                            <SelectItem value={elt} className="mx-auto">
-                              {elt}
-                            </SelectItem>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {action.file_type.includes("video") && (
-                      <Tabs defaultValue={defaultValues} className="w-full">
+                      <Tabs defaultValue="image" className="w-full">
                         <TabsList className="w-full">
-                          <TabsTrigger value="video" className="w-full">
-                            Video
-                          </TabsTrigger>
-                          <TabsTrigger value="audio" className="w-full">
-                            Audio
-                          </TabsTrigger>
+                          <TabsTrigger value="image" className="w-full">Image</TabsTrigger>
+                          <TabsTrigger value="video" className="w-full">Video</TabsTrigger>
+                          <TabsTrigger value="audio" className="w-full">Audio</TabsTrigger>
                         </TabsList>
+                        <TabsContent value="image">
+                          <div className="grid grid-cols-2 gap-2 w-fit">
+                            {extensions.image.map((elt, i) => (
+                              <div key={i} className="col-span-1 text-center">
+                                <SelectItem value={elt} className="mx-auto">
+                                  {elt}
+                                </SelectItem>
+                              </div>
+                            ))}
+                          </div>
+                        </TabsContent>
                         <TabsContent value="video">
                           <div className="grid grid-cols-3 gap-2 w-fit">
                             {extensions.video.map((elt, i) => (
@@ -330,16 +371,29 @@ export default function Dropzone() {
                         </TabsContent>
                       </Tabs>
                     )}
-                    {action.file_type.includes("audio") && (
-                      <div className="grid grid-cols-2 gap-2 w-fit">
-                        {extensions.audio.map((elt, i) => (
-                          <div key={i} className="col-span-1 text-center">
-                            <SelectItem value={elt} className="mx-auto">
-                              {elt}
-                            </SelectItem>
+                    {(action.file_type.includes("pdf") || 
+                      action.file_type.includes("msword") || 
+                      action.file_type.includes("wordprocessingml") ||
+                      action.file_type.includes("text/plain") ||
+                      action.file_type.includes("application/rtf")) && (
+                      <Tabs defaultValue="document" className="w-full">
+                        <TabsList className="w-full">
+                          <TabsTrigger value="document" className="w-full">Document</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="document">
+                          <div className="grid grid-cols-3 gap-2 w-fit">
+                            {extensions.document
+                              .filter(ext => ext !== action.from) // Don't show current format
+                              .map((elt, i) => (
+                                <div key={i} className="col-span-1 text-center">
+                                  <SelectItem value={elt} className="mx-auto">
+                                    {elt}
+                                  </SelectItem>
+                                </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </TabsContent>
+                      </Tabs>
                     )}
                   </SelectContent>
                 </Select>
@@ -412,7 +466,7 @@ export default function Dropzone() {
         toast({
           variant: "destructive",
           title: "Error uploading your file(s)",
-          description: "Allowed Files: Audio, Video and Images.",
+          description: "Allowed Files: Audio, Video, Images, and Documents (PDF, Word, etc.)",
           duration: 5000,
         });
       }}
@@ -421,7 +475,7 @@ export default function Dropzone() {
         toast({
           variant: "destructive",
           title: "Error uploading your file(s)",
-          description: "Allowed Files: Audio, Video and Images.",
+          description: "Allowed Files: Audio, Video, Images, and Documents (PDF, Word, etc.)",
           duration: 5000,
         });
       }}

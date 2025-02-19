@@ -7,21 +7,25 @@ import { ThemeProvider } from "@/components/theme-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "FileFlex",
-    description: `FileFlex – your go-to online tool for unlimited and free
-    multimedia conversion`,
+    title: "ConvertX - Free File Converter",
+    description: "Convert your files easily with ConvertX",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
-        <html lang="en">
+        <html lang="en" suppressHydrationWarning>
             <body className={inter.className}>
-                <ThemeProvider attribute="class" defaultTheme="system" enableSystem themes={["light", "dark"]}>
-                    <Navbar />
-                    <Toaster />
-                    <div className="container max-w-4xl min-h-screen pt-32 lg:pt-36 2xl:pt-44 lg:max-w-6xl 2xl:max-w-7xl">
+                <ThemeProvider
+                    attribute="class"
+                    defaultTheme="system"
+                    enableSystem
+                    disableTransitionOnChange
+                >
+                    <main className="min-h-screen px-4 pt-24 pb-4 md:px-8 lg:px-12 xl:px-16 2xl:px-24">
+                        <Navbar />
                         {children}
-                    </div>
+                    </main>
+                    <Toaster />
                 </ThemeProvider>
             </body>
         </html>
