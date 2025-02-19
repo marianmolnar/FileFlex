@@ -341,8 +341,8 @@ export default function Dropzone() {
               <div className="flex items-center gap-4 text-muted-foreground text-md">
                 <span>Convert to</span>
                 <Select
-                  value={action.to || ""}
-                  onValueChange={(value) => updateAction(action.file_name, value)}
+                  value={action.to ? String(action.to) : ""}
+                  onValueChange={(value: string) => updateAction(action.file_name, value)}
                 >
                   <SelectTrigger className="w-32">
                     <SelectValue placeholder="Convert to" />
