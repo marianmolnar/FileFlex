@@ -35,9 +35,8 @@ export default async function convertDocument(file: File, toFormat: string): Pro
         if (file.type.includes('text/plain')) {
           content = new TextDecoder().decode(arrayBuffer);
         } else if (file.type.includes('pdf')) {
-          // Extrahovat text z PDF pomocí pdf.js
-          const loadingTask = pdfjsLib.getDocument(new Uint8Array(arrayBuffer));
-          const pdf = await loadingTask.promise;
+          // Updated PDF.js usage
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
           const textContent = [];
           
           for (let i = 1; i <= pdf.numPages; i++) {
@@ -73,9 +72,8 @@ export default async function convertDocument(file: File, toFormat: string): Pro
 
       case 'txt':
         if (file.type.includes('pdf')) {
-          // Extrahovat text z PDF
-          const loadingTask = pdfjsLib.getDocument(new Uint8Array(arrayBuffer));
-          const pdf = await loadingTask.promise;
+          // Updated PDF.js usage
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
           const textContent = [];
           
           for (let i = 1; i <= pdf.numPages; i++) {
