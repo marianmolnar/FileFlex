@@ -1,66 +1,68 @@
-// imports
-import { Action } from '@/types';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import type { Action } from "@/types";
+import type { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
+import { getExtension, mimeFor, removeExtension } from "@/utils/formats";
 
-function getFileExtension(file_name: string) {
-  const regex = /(?:\.([^.]+))?$/; // Matches the last dot and everything after it
-  const match = regex.exec(file_name);
-  if (match && match[1]) {
-    return match[1];
-  }
-  return ''; // No file extension found
-}
-
-function removeFileExtension(file_name: string) {
-  const lastDotIndex = file_name.lastIndexOf('.');
-  if (lastDotIndex !== -1) {
-    return file_name.slice(0, lastDotIndex);
-  }
-  return file_name; // No file extension found
-}
+let counter = 0;
 
 export default async function convert(
   ffmpeg: FFmpeg,
   action: Action,
-): Promise<any> {
-  const { file, to, file_name, file_type } = action;
-  const input = getFileExtension(file_name);
-  const output = removeFileExtension(file_name) + '.' + to;
-  ffmpeg.writeFile(input, await fetchFile(file));
+): Promise<{ url: string; output: string }> {
+  const { file, file_name } = action;
+  const to = String(action.to);
+  const id = ++counter;
+  // unique names inside the in-memory FS, so files never collide
+  const input = `in_${id}.${getExtension(file_name) || "bin"}`;
+  const tmpOutput = `out_${id}.${to}`;
+  const output = `${removeExtension(file_name)}.${to}`;
 
-  // FFMEG COMMANDS
-  let ffmpeg_cmd: any = [];
-  // 3gp video
-  if (to === '3gp')
-    ffmpeg_cmd = [
-      '-i',
-      input,
-      '-r',
-      '20',
-      '-s',
-      '352x288',
-      '-vb',
-      '400k',
-      '-acodec',
-      'aac',
-      '-strict',
-      'experimental',
-      '-ac',
-      '1',
-      '-ar',
-      '8000',
-      '-ab',
-      '24k',
-      output,
-    ];
-  else ffmpeg_cmd = ['-i', input, output];
+  await ffmpeg.writeFile(input, await fetchFile(file));
 
-  // execute cmd
-  await ffmpeg.exec(ffmpeg_cmd);
+  const isImage = action.category === "image";
+  const audioTargets = ["mp3", "wav", "ogg", "aac", "flac", "m4a", "wma"];
 
-  const data = (await ffmpeg.readFile(output)) as any;
-  const blob = new Blob([data], { type: file_type.split('/')[0] });
-  const url = URL.createObjectURL(blob);
-  return { url, output };
+  let cmd: string[];
+  if (to === "3gp" || to === "3g2")
+    cmd = ["-i", input, "-r", "20", "-s", "352x288", "-vb", "400k", "-acodec", "aac",
+      "-ac", "1", "-ar", "8000", "-ab", "24k", tmpOutput];
+  else if (to === "webm")
+    // VP9 crashes in ffmpeg.wasm (out of memory) — VP8 + Vorbis is stable
+    cmd = ["-i", input, "-c:v", "libvpx", "-b:v", "1M", "-deadline", "realtime", "-cpu-used", "8",
+      "-c:a", "libvorbis", tmpOutput];
+  else if (action.category === "video" && to === "gif")
+    cmd = ["-i", input, "-vf", "fps=12,scale=480:-1:flags=lanczos", tmpOutput];
+  else if (action.category === "video" && audioTargets.includes(to))
+    cmd = ["-i", input, "-vn", tmpOutput]; // extract audio track
+  else if (isImage) {
+    // single frame; mjpeg needs a yuvj pixel format, otherwise the wasm build hangs
+    const extra =
+      to === "jpg" || to === "jpeg" ? ["-pix_fmt", "yuvj420p", "-q:v", "2"]
+      : to === "ico" ? ["-vf", "scale='min(256,iw)':'min(256,ih)':force_original_aspect_ratio=decrease"]
+      : [];
+    cmd = ["-i", input, "-frames:v", "1", "-update", "1", ...extra, tmpOutput];
+  } else cmd = ["-i", input, tmpOutput];
+
+  let log = "";
+  const onLog = ({ message }: { message: string }) => { log = (log + "\n" + message).slice(-2000); };
+  ffmpeg.on("log", onLog);
+  let code: number;
+  try {
+    code = await ffmpeg.exec(cmd, isImage ? 60_000 : -1);
+  } finally {
+    ffmpeg.off("log", onLog);
+  }
+
+  try {
+    if (code !== 0) {
+      const last = log.trim().split("\n").filter(Boolean).pop() ?? "";
+      throw new Error(`ffmpeg failed (${code})${last ? ": " + last : ""}`);
+    }
+    const data = (await ffmpeg.readFile(tmpOutput)) as Uint8Array;
+    const blob = new Blob([data], { type: mimeFor(to) });
+    return { url: URL.createObjectURL(blob), output };
+  } finally {
+    await ffmpeg.deleteFile(input).catch(() => {});
+    await ffmpeg.deleteFile(tmpOutput).catch(() => {});
+  }
 }
