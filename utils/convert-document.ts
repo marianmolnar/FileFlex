@@ -30,15 +30,52 @@ async function textToPdf(text: string): Promise<Uint8Array> {
   const fontkit = (await import("@pdf-lib/fontkit")).default;
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
+  const fetchFont = async (url: string) => {
+    const bytes = await fetch(url).then((r) => r.arrayBuffer());
+    return { bytes, glyphs: fontkit.create(new Uint8Array(bytes)) };
+  };
   // Unicode font, so diacritics (č, ř, ž…) work — standard PDF fonts only cover WinAnsi
-  const fontBytes = await fetch("/fonts/DejaVuSans.ttf").then((r) => r.arrayBuffer());
-  const font = await pdf.embedFont(fontBytes, { subset: true });
+  const primary = await fetchFont("/fonts/DejaVuSans.ttf");
+  const fonts = [{ ...primary, font: await pdf.embedFont(primary.bytes, { subset: true }) }];
+  const has = (i: number, ch: string) => fonts[i].glyphs.hasGlyphForCodePoint(ch.codePointAt(0)!);
+  const chars = Array.from(new Set(text));
+  // CJK fonts are large, so they are only fetched and embedded when the text needs them.
+  // pdf-lib's subsetting drops glyphs from these fonts, so they are embedded whole.
+  let missing = chars.filter((ch) => ch.trim() && !has(0, ch));
+  for (const url of ["/fonts/DroidSansFallbackFull.ttf", "/fonts/NanumGothic-Regular.ttf"]) {
+    if (!missing.length) break;
+    const fallback = await fetchFont(url);
+    const covered = missing.filter((ch) => fallback.glyphs.hasGlyphForCodePoint(ch.codePointAt(0)!));
+    if (!covered.length) continue;
+    fonts.push({ ...fallback, font: await pdf.embedFont(fallback.bytes, { subset: false }) });
+    missing = missing.filter((ch) => !covered.includes(ch));
+  }
+
+  // pick the first font that has a glyph for each character
+  const fontIndex = new Map<string, number>();
+  for (const ch of chars) {
+    const i = fonts.findIndex((_, j) => has(j, ch));
+    fontIndex.set(ch, i === -1 ? 0 : i);
+  }
+  // split a line into runs that share a font; spaces stay with the preceding run
+  const runs = (line: string) => {
+    const out: { text: string; font: (typeof fonts)[number]["font"] }[] = [];
+    let current = -1;
+    for (const ch of Array.from(line)) {
+      const i = ch === " " && current !== -1 ? current : fontIndex.get(ch) ?? 0;
+      if (i === current) out[out.length - 1].text += ch;
+      else out.push({ text: ch, font: fonts[i].font }), (current = i);
+    }
+    return out;
+  };
 
   const size = 11;
   const lineHeight = size * 1.4;
   const margin = 50;
   const [pageW, pageH] = [595.28, 841.89]; // A4
   const maxWidth = pageW - margin * 2;
+  const widthOf = (line: string) =>
+    runs(line).reduce((w, r) => w + r.font.widthOfTextAtSize(r.text, size), 0);
 
   // wrap every paragraph to the page width
   const lines: string[] = [];
@@ -47,17 +84,14 @@ async function textToPdf(text: string): Promise<Uint8Array> {
     let line = "";
     for (const word of paragraph.split(/ +/)) {
       const candidate = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) { line = candidate; continue; }
+      if (widthOf(candidate) <= maxWidth) { line = candidate; continue; }
       if (line) lines.push(line);
-      // a single word longer than the line gets hard-split
-      let rest = word;
-      while (font.widthOfTextAtSize(rest, size) > maxWidth) {
-        let n = rest.length;
-        while (n > 1 && font.widthOfTextAtSize(rest.slice(0, n), size) > maxWidth) n--;
-        lines.push(rest.slice(0, n));
-        rest = rest.slice(n);
+      // a word longer than the line (or unspaced CJK text) is split by characters
+      line = "";
+      for (const ch of Array.from(word)) {
+        if (line && widthOf(line + ch) > maxWidth) { lines.push(line); line = ""; }
+        line += ch;
       }
-      line = rest;
     }
     lines.push(line);
   }
@@ -70,7 +104,11 @@ async function textToPdf(text: string): Promise<Uint8Array> {
       y = pageH - margin;
     }
     y -= lineHeight;
-    if (line) page.drawText(line, { x: margin, y, size, font });
+    let x = margin;
+    for (const run of runs(line)) {
+      page.drawText(run.text, { x, y, size, font: run.font });
+      x += run.font.widthOfTextAtSize(run.text, size);
+    }
   }
   return pdf.save();
 }

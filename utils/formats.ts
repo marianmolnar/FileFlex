@@ -15,10 +15,16 @@ export const documentTargets: Record<string, string[]> = {
   txt: ["pdf", "docx"],
 };
 
+// Formats ffmpeg.wasm can read but that are not offered as targets
+const inputOnly = {
+  video: ["mpeg", "mpg", "ts"],
+  audio: ["opus", "aiff"],
+};
+
 export const acceptedFiles = {
   "image/*": extensions.image.map((e) => "." + e),
-  "video/*": [...extensions.video.map((e) => "." + e), ".mpeg", ".mpg", ".ts"],
-  "audio/*": [...extensions.audio.map((e) => "." + e), ".opus", ".aiff"],
+  "video/*": [...extensions.video, ...inputOnly.video].map((e) => "." + e),
+  "audio/*": [...extensions.audio, ...inputOnly.audio].map((e) => "." + e),
   "application/pdf": [".pdf"],
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
   "text/plain": [".txt"],
@@ -38,9 +44,12 @@ export function removeExtension(name: string): string {
 export function detectCategory(file: File): Category | null {
   const ext = getExtension(file.name);
   if (ext in documentTargets) return "document";
-  if (extensions.image.includes(ext) || file.type.startsWith("image/")) return "image";
-  if (extensions.audio.includes(ext) || file.type.startsWith("audio/")) return "audio";
-  if (extensions.video.includes(ext) || file.type.startsWith("video/")) return "video";
+  if (extensions.image.includes(ext)) return "image";
+  if (extensions.audio.includes(ext) || inputOnly.audio.includes(ext)) return "audio";
+  if (extensions.video.includes(ext) || inputOnly.video.includes(ext)) return "video";
+  if (file.type.startsWith("image/")) return "image";
+  if (file.type.startsWith("audio/")) return "audio";
+  if (file.type.startsWith("video/")) return "video";
   return null;
 }
 
